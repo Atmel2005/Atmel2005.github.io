@@ -311,29 +311,31 @@ class RP2040Particle {
             this.vy = (Math.random() - 0.5) * 1.5 * speedMultiplier;
         }
         
-        this.size = 8 + Math.random() * 8;
+        this.size = 20 + Math.random() * 20;
         this.rotation = Math.random() * Math.PI * 2;
         this.rotationSpeed = (Math.random() - 0.5) * 0.04;
         this.opacity = 0.5 + Math.random() * 0.3;
         this.ledBlink = Math.random() * Math.PI * 2;
         this.ledColor = Math.random() > 0.5 ? '#00ff00' : '#ff6600';
         this.speedChangeTimer = 50 + Math.random() * 100;
+        this.currentSize = this.size;
     }
 
     update() {
         this.speedChangeTimer--;
+        
         if (this.speedChangeTimer <= 0) {
-            this.speedChangeTimer = 50 + Math.random() * 150;
-            const change = (Math.random() - 0.5) * 0.5;
-            if (this.type !== 'projectile') {
-                this.vx *= (1 + change);
-                this.vy *= (1 + change);
-                const maxSpeed = this.type === 'speedster' ? 4 : 2;
-                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                if (speed > maxSpeed) {
-                    this.vx = (this.vx / speed) * maxSpeed;
-                    this.vy = (this.vy / speed) * maxSpeed;
-                }
+            this.speedChangeTimer = 50 + Math.random() * 100;
+            const speedMultiplier = 0.5 + Math.random() * 1.5;
+            
+            if (this.type === 'projectile') {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 2;
+                this.vx = Math.cos(angle) * speed * speedMultiplier;
+                this.vy = Math.sin(angle) * speed * speedMultiplier;
+            } else {
+                this.vx = (Math.random() - 0.5) * 1.5 * speedMultiplier;
+                this.vy = (Math.random() - 0.5) * 1.5 * speedMultiplier;
             }
         }
         
@@ -341,12 +343,30 @@ class RP2040Particle {
         this.y += this.vy;
         this.rotation += this.rotationSpeed;
         this.ledBlink += 0.1;
-
-        const margin = this.size;
-        if (this.x < -margin) this.x = canvas.width + margin;
-        if (this.x > canvas.width + margin) this.x = -margin;
-        if (this.y < -margin) this.y = canvas.height + margin;
-        if (this.y > canvas.height + margin) this.y = -margin;
+        
+        // Shrink when near cursor
+        if (mouseX !== null && mouseY !== null) {
+            const dx = this.x - mouseX;
+            const dy = this.y - mouseY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 150) {
+                this.currentSize = this.size * 0.5;
+            } else {
+                this.currentSize = this.size;
+            }
+        } else {
+            this.currentSize = this.size;
+        }
+        
+        // Bounce off edges
+        if (this.x < this.currentSize || this.x > canvas.width - this.currentSize) {
+            this.vx *= -1;
+            this.x = Math.max(this.currentSize, Math.min(canvas.width - this.currentSize, this.x));
+        }
+        if (this.y < this.currentSize || this.y > canvas.height - this.currentSize) {
+            this.vy *= -1;
+            this.y = Math.max(this.currentSize, Math.min(canvas.height - this.currentSize, this.y));
+        }
     }
 
     draw() {
@@ -355,8 +375,8 @@ class RP2040Particle {
         ctx.rotate(this.rotation);
         ctx.globalAlpha = this.opacity;
 
-        const w = this.size * 1.6;
-        const h = this.size;
+        const w = this.currentSize * 1.6;
+        const h = this.currentSize;
         const r = 4;
 
         // PCB board - blue with gradient
@@ -417,13 +437,13 @@ class RP2040Particle {
         ctx.stroke();
         // Chip text
         ctx.fillStyle = '#888';
-        ctx.font = `bold ${this.size * 0.08}px Inter`;
+        ctx.font = `bold ${this.currentSize * 0.08}px Inter`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('RP2040', 0, -this.size * 0.03);
-        ctx.font = `${this.size * 0.06}px Inter`;
+        ctx.fillText('RP2040', 0, -this.currentSize * 0.03);
+        ctx.font = `${this.currentSize * 0.06}px Inter`;
         ctx.fillStyle = '#666';
-        ctx.fillText('RPI', 0, this.size * 0.08);
+        ctx.fillText('RPI', 0, this.currentSize * 0.08);
 
         // Gold pins on sides
         ctx.fillStyle = '#ffd700';
@@ -475,12 +495,12 @@ class RP2040Particle {
 
         // Board text labels
         ctx.fillStyle = '#fff';
-        ctx.font = `bold ${this.size * 0.07}px Inter`;
+        ctx.font = `bold ${this.currentSize * 0.07}px Inter`;
         ctx.textAlign = 'center';
-        ctx.fillText('RP2040', 0, -this.size * 0.35);
-        ctx.font = `${this.size * 0.06}px Inter`;
+        ctx.fillText('RP2040', 0, -this.currentSize * 0.35);
+        ctx.font = `${this.currentSize * 0.06}px Inter`;
         ctx.fillStyle = '#aaa';
-        ctx.fillText('ZERO', 0, -this.size * 0.28);
+        ctx.fillText('ZERO', 0, -this.currentSize * 0.28);
 
         // Reset button
         ctx.fillStyle = '#303030';
@@ -501,7 +521,7 @@ class RP2040Particle {
 function initParticles() {
     resizeCanvas();
     particles = [];
-    const particleCount = Math.min(30, Math.floor(canvas.width * canvas.height / 15000));
+    const particleCount = 10;
     for (let i = 0; i < particleCount; i++) {
         particles.push(new RP2040Particle());
     }
